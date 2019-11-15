@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+
+-<VARIABLES>
+
+<fromaddress>SharePointProd@contoso.com</fromaddress>
+
+<toaddress>mose@contoso.com</toaddress>
+
+<smtpserver>ContosoMAIL</smtpserver>
+
+<subject>Production SharePoint</subject>
+
+<excludewebapp></excludewebapp>
+
+</VARIABLES>
