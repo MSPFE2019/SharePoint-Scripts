@@ -236,6 +236,8 @@ Status
 $CPU = $CPUDataCol | ConvertTo-Html -Fragment
 $CPU = SetSystemStatusColor $CPU
 write-host Received CPU Utilization Status Details -foregroundcolor "green"
+#endregion
+
 
 #######################################  Memory Utilization Status Details  #################################################
 
@@ -284,6 +286,12 @@ $SPServerDetails = SetSystemStatusColor $SPServerDetails
 write-host Received All SharePoint Server Farm Info -foregroundcolor "green"
 
 #endregion
+########################################  Web Template usage in farm  ##################################################
+
+#Web Template usage in farm 
+$Webt = Get-SPSite -Limit All | ? { -not $_.IsReadLocked } | Get-SPWeb -Limit All | GROUP WebTemplate | FT Name, Count -AutoSize| ConvertTo-Html -Fragment
+
+
 
 #region Web Applications Status
 
@@ -397,12 +405,71 @@ write-host Received SharePoint Windows Service Status -foregroundcolor "green"
  
 #######################################  IIS Application Pool Status Details  ##########################################
 
- 
-$IISAppPoolCol = Get-WmiObject -Authentication PacketPrivacy -Impersonation Impersonate -ComputerName $ServersinFarm.Name -namespace "root/MicrosoftIISv2" -class
-IIsApplicationPoolSetting | Select @{Name='SharePoint Server';Expression={$_.__SERVER}} ,@{Name='App Pool Name';Expression={$_.Name}},@{Name='AppPool Identity';Expression={$_.WAMUserName}},@{Name='AppPool Status';Expression={$_.AppPoolState}}
-$IISAppPool = $IISAppPoolCol | ConvertTo-Html -Fragment
-$IISAppPool = SetAppPoolStatusColor $IISAppPool 
-write-host Received IIS AppPool Status -foregroundcolor "green"
+function Get-AppPoolStatus
+{
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory=$true)][string]$ComputerName,
+        [Parameter(Mandatory=$false)][string]$ApplicationPoolName
+    )
+    
+    begin
+    {
+        $filter = { $true }
+        [Reflection.Assembly]::LoadWithPartialName('Microsoft.Web.Administration') | Out-Null
+    }
+    process
+    {
+
+        if( $ApplicationPoolName )
+        {
+            $filter =  { $_.Name -eq $ApplicationPoolName }
+        }
+        
+        $serverManager = [Microsoft.Web.Administration.ServerManager]::OpenRemote( $ComputerName )
+        
+        if( $serverManager.ApplicationPools | ? $filter )
+        {
+            foreach( $applicationPool in $serverManager.ApplicationPools | ? $filter )
+            {
+                [PSCustomObject] @{
+                    ComputerName          = $ComputerName
+                    ApplicationPoolName   = $applicationPool.Name
+                    ApplicationPoolStatus = $applicationPool.State
+                }
+            }
+        }
+        else
+        {
+            [PSCustomObject] @{
+                ComputerName          = $ComputerName
+                ApplicationPoolName   = $ApplicationPoolName
+                ApplicationPoolStatus = "Not Found"
+            }        
+        }
+    }
+    end
+    {
+    }
+}
+
+$results = @()
+
+foreach( $serviceApplicationPool in Get-SPServiceApplicationPool )
+{
+    foreach( $server in Get-SPServer |? { $_.Role -ne "Invalid" } )
+    {
+        # get the named app pools
+        $results += Get-AppPoolStatus -ComputerName $server.Name -ApplicationPoolName $serviceApplicationPool.Name
+        
+        # get the app pools that use the GUID (w/o the - chars)
+        $results += Get-AppPoolStatus -ComputerName $server.Name -ApplicationPoolName $serviceApplicationPool.Id.ToString().Replace("-", "") -Verbose
+    }
+}
+
+$results | SORT ComputerName, ApplicationPoolName | FT ComputerName, ApplicationPoolName, ApplicationPoolStatus -AutoSize
+$resultsapp = $results | ConvertTo-Html -Fragment
 
 #endregion
 
@@ -619,6 +686,12 @@ $ReportsList.Items | Where-Object {$_['Severity'] -ne '4 - Success' -or $_['Titl
  
 $SPFarmHA = $body | ConvertTo-Html -Fragment
 
+#### Workflow Manager Status
+$wf = Get-WFFarmStatus | SORT HostName | SELECT HostName, ServiceName, ServiceStatus  | ConvertTo-Html -Fragment
+
+#### ServiceBus Status
+$sb = (Get-SBFarmStatus).GetEnumerator() | SORT HostName | SELECT HostId, HostName, Servicename, Status |ConvertTo-Html -Fragment 
+
  
 ############# Using Memory ##############
 
@@ -632,7 +705,8 @@ $owadata = (Get-OfficeWebAppsFarm).Machines
 
 $owadata = $owadata | ConvertTo-Html -Fragment
 
- 
+
+
 ############################ Time Stamp##############################################
 $ReportDate = Get-Date |select Day , DayOfWeek , Year | ConvertTo-Html -Fragment
 
@@ -664,7 +738,7 @@ ConvertTo-Html -Head $header -Body "
 <font color = blue><H4><B>SharePoint Web Application Status</B></H4>$WebApplication
 <font color = blue><H4><B>Site Collection Status</B></H4></font>$WebResponseTime
 <font color = blue><H4><B>SharePoint Windows Services Status</B></H4></font>$SPServices
-<font color = blue><H4><B>IIS Application Pool Status - AppPoolState will return 1=starting, 2=started, 3=stopping, 4=stopped</B></H4>$IISAppPool
+<font color = blue><H4><B>IIS Application Pool Status</B></H4>$resultsapp
 <font color = blue><H4><B>SharePoint Service Application Status</B></H4>$ServiceAppplications
 <font color = blue><H4><B>SharePoint Service Application Proxy Status</B></H4>$ApplicationProxies
 <font color = blue><H4><B>SharePoint Service Instances Status</B></H4>$SPServiceInstances
@@ -674,7 +748,8 @@ ConvertTo-Html -Head $header -Body "
 <font color = blue><H4><B>SharePoint Native Backup History</B></H4></font>$SPBackup
 <font color = blue><H4><B>SharePoint Search Component Status</B></H4></font>$SPSStatus
 <font color = blue><H4><B>SharePoint Search History</B></H4></font>$crawl
-<font color = blue><H4><B>Workflow Engine Status</B></H4></font>$wfestatus
+<font color = blue><H4><B>Workflow Engine Status</B></H4></font>$wf
+<font color = blue><H4><B>Service Bus Status</B></H4></font>$sb
 <font color = blue><H4><B>SharePoint AppFarbic Cache Status</B></H4></font>$APFstatus
 <font color = blue><H4><B>Office Web Application Status</B></H4></font>$owadata
 <font color = blue>Verison 3.5</font
