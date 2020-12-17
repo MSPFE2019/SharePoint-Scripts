@@ -1,0 +1,44 @@
+$Worker = {
+    param($Name,$webapp,$NormalizedDataSource) 
+    
+    Add-PSSnapin "Microsoft.SharePoint.PowerShell"
+	Write-Host "Mounting $Name.name to $name.webapp"
+    Mount-SPContentDatabase -WebApplication $name.webapp -Name $Name.name -DatabaseServer $name.NormalizedDataSource
+	Write-Host "$Name.name has been mounted to $name.webapp"
+    Start-Sleep 50
+}
+
+$MaxRunspaces = 5
+
+$RunspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxRunspaces)
+$RunspacePool.Open()
+
+$Jobs = New-Object System.Collections.ArrayList
+$databases = Import-Csv "contentdbs.csv"
+
+foreach ($item in $databases) {
+    Write-Host "Creating runspace for $Item"
+    $PowerShell = [powershell]::Create()
+	$PowerShell.RunspacePool = $RunspacePool
+    $PowerShell.AddScript($Worker).AddArgument($item) | Out-Null
+    
+    $JobObj = New-Object -TypeName PSObject -Property @{
+		Runspace = $PowerShell.BeginInvoke()
+		PowerShell = $PowerShell  
+    }
+
+    $Jobs.Add($JobObj) | Out-Null
+}
+
+while ($Jobs.Runspace.IsCompleted -contains $false) {
+    Write-Host (Get-date).Tostring() "Still running..."
+	Start-Sleep 1
+}
+
+
+
+Start-Transcript -Path Computer.log
+
+Write-Host "everything will end up in Computer.log"
+
+Stop-Transcript
