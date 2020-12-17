@@ -286,11 +286,11 @@ $SPServerDetails = SetSystemStatusColor $SPServerDetails
 write-host Received All SharePoint Server Farm Info -foregroundcolor "green"
 
 #endregion
-########################################  Web Template usage in farm  ##################################################
+########################################  Web Template Usage in Farm  ##################################################
 
 #Web Template usage in farm 
 $Webt = Get-SPSite -Limit All | ? { -not $_.IsReadLocked } | Get-SPWeb -Limit All | GROUP WebTemplate | FT Name, Count -AutoSize| ConvertTo-Html -Fragment
-
+write-host Received Web Template Usage in Farm -foregroundcolor "green"
 
 
 #region Web Applications Status
@@ -403,7 +403,7 @@ $SPServices = SetWinServiceStatusColor $SPServices
 write-host Received SharePoint Windows Service Status -foregroundcolor "green"
 
  
-#######################################  IIS Application Pool Status Details  ##########################################
+#######################################  SharePoint Pool Status Details  ##########################################
 
 function Get-AppPoolStatus
 {
@@ -470,6 +470,7 @@ foreach( $serviceApplicationPool in Get-SPServiceApplicationPool )
 
 $results | SORT ComputerName, ApplicationPoolName | FT ComputerName, ApplicationPoolName, ApplicationPoolStatus -AutoSize
 $resultsapp = $results | ConvertTo-Html -Fragment
+write-host Received SharePoint Pool Status -foregroundcolor "green"
 
 #endregion
 
@@ -685,15 +686,18 @@ $ReportsList.Items | Where-Object {$_['Severity'] -ne '4 - Success' -or $_['Titl
  
  
 $SPFarmHA = $body | ConvertTo-Html -Fragment
+write-host Received Health Analyzer Status -foregroundcolor "green"
 
 #### Workflow Manager Status
 $wf = Get-WFFarmStatus | SORT HostName | SELECT HostName, ServiceName, ServiceStatus  | ConvertTo-Html -Fragment
+write-host Received Workflow Manager Status -foregroundcolor "green"
+
 
 #### ServiceBus Status
 $sb = (Get-SBFarmStatus).GetEnumerator() | SORT HostName | SELECT HostId, HostName, Servicename, Status |ConvertTo-Html -Fragment 
 
  
-############# Using Memory ##############
+############# OWA  ##############
 
  
 $OWAServer = Get-SPWOPIZone | get-spwopibinding | select-object servername -first 1
@@ -704,7 +708,7 @@ $owadata = (Get-OfficeWebAppsFarm).Machines
 }
 
 $owadata = $owadata | ConvertTo-Html -Fragment
-
+write-host Received Office Web App Status -foregroundcolor "green"
 
 
 ############################ Time Stamp##############################################
@@ -733,12 +737,13 @@ ConvertTo-Html -Head $header -Body "
 <font color = blue><H4><B>Disk Utilization</B></H4></font>$Disk
 <font color = blue><H4><B>SharePoint Health Analyzer</B></H4></font>$SPFarmHA
 <font color = blue><H4><B>SharePoint Farm Status</B></H4></font>$SPFarm
-<font color = blue><H4><B>SharePoint servers status</B></H4></font>$SPServersInfo
+<font color = blue><H4><B>SharePoint Servers Status</B></H4></font>$SPServersInfo
 <font color = blue><H4><B>SharePoint Farm Server List</B></H4></font>$SPServerDetails
 <font color = blue><H4><B>SharePoint Web Application Status</B></H4>$WebApplication
 <font color = blue><H4><B>Site Collection Status</B></H4></font>$WebResponseTime
+<font color = blue><H4><B>Web Template Usage</B></H4></font>$Webt 
 <font color = blue><H4><B>SharePoint Windows Services Status</B></H4></font>$SPServices
-<font color = blue><H4><B>IIS Application Pool Status</B></H4>$resultsapp
+<font color = blue><H4><B>SharePoint Application Pool Status</B></H4>$resultsapp
 <font color = blue><H4><B>SharePoint Service Application Status</B></H4>$ServiceAppplications
 <font color = blue><H4><B>SharePoint Service Application Proxy Status</B></H4>$ApplicationProxies
 <font color = blue><H4><B>SharePoint Service Instances Status</B></H4>$SPServiceInstances
